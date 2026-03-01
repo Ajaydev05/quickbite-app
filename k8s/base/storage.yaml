@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# storage.yaml — Persistent storage for MongoDB using PV + PVC
+#
+# Architecture:
+#   StorageClass  →  defines HOW storage is provisioned (hostPath on worker node)
+#   PersistentVolume (PV)  →  the actual storage resource (10Gi on worker disk)
+#   PersistentVolumeClaim (PVC)  →  MongoDB's "request" for that storage
+#   MongoDB Pod  →  mounts the PVC at /data/db
+#
+# Why hostPath?
+#   We are using bare EC2 worker nodes (no EBS CSI driver installed).
+#   hostPath stores data directly on the worker node's disk (the 20GB gp3 volume).
+#   For production with EBS, replace with aws-ebs-csi-driver + StorageClass.
+# ─────────────────────────────────────────────────────────────────────────────
+
+---
+# StorageClass — defines the type of storage
+# "manual" means we create the PV ourselves (static provisioning)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: manual
+  labels:
+    app: foodapp
+provisioner: kubernetes.io/no-provisioner   # static provisioning (we create PV manually)
+volumeBindingMode: WaitForFirstConsumer     # wait until a pod needs it before binding
+reclaimPolicy: Retain                       # keep data even after PVC is deleted
+
+---
+# PersistentVolume — the actual storage pool
+# This creates a 10Gi directory on whichever worker node runs MongoDB
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongodb-pv
+  labels:
+    type: local
+    app: mongodb
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce         # only one pod can mount this at a time (fine for single MongoDB)
+  persistentVolumeReclaimPolicy: Retain   # data survives even if PVC is deleted
+  hostPath:
+    path: /mnt/data/mongodb             # directory on the worker node's disk
+    type: DirectoryOrCreate             # creates the directory if it doesn't exist
+
+---
+# PersistentVolumeClaim — MongoDB claims storage from the PV above
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: default
+  labels:
+    app: mongodb
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi       # must match or be <= PV capacity

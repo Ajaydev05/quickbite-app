@@ -1,0 +1,103 @@
+// jenkins/Jenkinsfile.infra
+// Provisions worker EC2s + ECR repos using Terraform
+// Run this ONCE before the app pipeline — or whenever you need to add/remove workers
+
+pipeline {
+  agent any
+
+  environment {
+    AWS_REGION = 'ap-south-1'
+    TF_DIR     = 'foodapp/terraform/environments/prod'
+  }
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    timeout(time: 30, unit: 'MINUTES')
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'aws-access-key',    variable: 'AWS_ACCESS_KEY'),
+          string(credentialsId: 'aws-secret-key',    variable: 'AWS_SECRET_KEY'),
+          string(credentialsId: 'cluster-token',     variable: 'CLUSTER_TOKEN'),
+          string(credentialsId: 'cluster-ca-hash',   variable: 'CLUSTER_CA_HASH'),
+          string(credentialsId: 'master-private-ip', variable: 'MASTER_IP'),
+          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME')
+        ]) {
+          dir(TF_DIR) {
+            sh 'terraform init -reconfigure -input=false'
+          }
+        }
+      }
+    }
+
+    stage('Terraform Plan') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'aws-access-key',    variable: 'AWS_ACCESS_KEY'),
+          string(credentialsId: 'aws-secret-key',    variable: 'AWS_SECRET_KEY'),
+          string(credentialsId: 'cluster-token',     variable: 'CLUSTER_TOKEN'),
+          string(credentialsId: 'cluster-ca-hash',   variable: 'CLUSTER_CA_HASH'),
+          string(credentialsId: 'master-private-ip', variable: 'MASTER_IP'),
+          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME')
+        ]) {
+          dir(TF_DIR) {
+            sh """
+              terraform plan -out=tfplan -input=false \
+                -var="aws_access_key=\$AWS_ACCESS_KEY" \
+                -var="aws_secret_key=\$AWS_SECRET_KEY" \
+                -var="cluster_token=\$CLUSTER_TOKEN" \
+                -var="cluster_ca_hash=\$CLUSTER_CA_HASH" \
+                -var="master_private_ip=\$MASTER_IP" \
+                -var="key_name=\$KEY_NAME"
+            """
+            archiveArtifacts artifacts: 'tfplan', allowEmptyArchive: true
+          }
+        }
+      }
+    }
+
+    stage('Approval') {
+      when { branch 'main' }
+      steps {
+        input message: 'Review the plan above. Apply to create worker EC2s?',
+              parameters: [choice(name: 'ACTION', choices: ['Approve', 'Abort'], description: '')]
+      }
+    }
+
+    stage('Terraform Apply') {
+      when { branch 'main' }
+      steps {
+        withCredentials([
+          string(credentialsId: 'aws-access-key',    variable: 'AWS_ACCESS_KEY'),
+          string(credentialsId: 'aws-secret-key',    variable: 'AWS_SECRET_KEY'),
+          string(credentialsId: 'cluster-token',     variable: 'CLUSTER_TOKEN'),
+          string(credentialsId: 'cluster-ca-hash',   variable: 'CLUSTER_CA_HASH'),
+          string(credentialsId: 'master-private-ip', variable: 'MASTER_IP'),
+          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME')
+        ]) {
+          dir(TF_DIR) {
+            sh """
+              terraform apply -auto-approve tfplan
+              echo "=== Terraform Outputs ==="
+              terraform output
+            """
+          }
+        }
+      }
+    }
+
+  }
+
+  post {
+    success { echo '✅ Infrastructure ready — worker nodes created and joining master' }
+    failure { echo '❌ Terraform failed — check logs above' }
+  }
+}

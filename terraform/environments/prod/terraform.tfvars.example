@@ -1,0 +1,20 @@
+# Rename this file:  cp terraform.tfvars.example terraform.tfvars
+# Then fill in your values and run: terraform apply
+
+aws_region     = "ap-south-1"
+aws_access_key = "AKIAIOSFODNN7EXAMPLE"
+aws_secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+key_name       = "your-keypair-name"
+
+instance_type_worker = "t3.small"
+
+# After you run kubeadm init on your master:
+#   kubeadm token create --print-join-command
+# Paste the values from that output below:
+master_private_ip = "172.31.x.x"
+cluster_token     = "xxxxxx.xxxxxxxxxxxxxxxx"
+cluster_ca_hash   = "sha256:xxxxxxxxxxxxxxxxxxxxxxxx"
+
+# DockerHub
+dockerhub_username = "yourdockerhubusername"
+dockerhub_password = "yourdockerhubpassword"

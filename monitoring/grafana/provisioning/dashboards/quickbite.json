@@ -1,0 +1,178 @@
+{
+  "id": null,
+  "uid": "quickbite-main",
+  "title": "QuickBite App Dashboard",
+  "tags": ["quickbite", "nodejs"],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total HTTP Requests",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(http_requests_total)",
+          "legendFormat": "Total Requests",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Request Rate (req/s)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m]))",
+          "legendFormat": "Req/s",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Error Rate (%)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1m])) / sum(rate(http_requests_total[1m])) * 100",
+          "legendFormat": "Error %",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus",
+      "options": {
+        "thresholds": {
+          "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 5 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Avg Response Time (ms)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_request_duration_ms_sum[1m])) / sum(rate(http_request_duration_ms_count[1m]))",
+          "legendFormat": "Avg Latency",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 5,
+      "type": "graph",
+      "title": "HTTP Request Rate by Method",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (method)",
+          "legendFormat": "{{method}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 6,
+      "type": "graph",
+      "title": "Response Time Percentiles (ms)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_ms_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 7,
+      "type": "graph",
+      "title": "Node.js Memory Usage",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "nodejs_heap_size_used_bytes",
+          "legendFormat": "Heap Used",
+          "refId": "A"
+        },
+        {
+          "expr": "nodejs_heap_size_total_bytes",
+          "legendFormat": "Heap Total",
+          "refId": "B"
+        }
+      ],
+      "datasource": "Prometheus",
+      "yAxes": [{ "format": "bytes" }]
+    },
+    {
+      "id": 8,
+      "type": "graph",
+      "title": "HTTP Errors by Status Code",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status_code=~\"4..|5..\"}[1m])) by (status_code)",
+          "legendFormat": "{{status_code}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 9,
+      "type": "graph",
+      "title": "Active Orders",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "quickbite_active_orders_total",
+          "legendFormat": "Active Orders",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    },
+    {
+      "id": 10,
+      "type": "graph",
+      "title": "Node.js Event Loop Lag",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "nodejs_eventloop_lag_seconds",
+          "legendFormat": "Event Loop Lag",
+          "refId": "A"
+        }
+      ],
+      "datasource": "Prometheus"
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" }
+}
