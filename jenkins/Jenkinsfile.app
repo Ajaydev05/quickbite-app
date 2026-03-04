@@ -11,7 +11,7 @@ pipeline {
   FRONTEND_IMAGE  = "ajaydev/foodapp-frontend"
   KUBECONFIG      = '/var/lib/jenkins/.kube/config'
 }
-  }
+  
 
   options {
     buildDiscarder(logRotator(numToKeepStr: '10'))
