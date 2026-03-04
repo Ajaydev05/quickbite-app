@@ -5,12 +5,12 @@ pipeline {
   agent any
 
   environment {
-    DOCKERHUB_USER  = credentials('dockerhub-username')
-    DOCKERHUB_PASS  = credentials('dockerhub-password')
-    IMAGE_TAG       = "${GIT_COMMIT[0..7]}"
-    BACKEND_IMAGE   = "${DOCKERHUB_USER}/foodapp-backend"
-    FRONTEND_IMAGE  = "${DOCKERHUB_USER}/foodapp-frontend"
-    KUBECONFIG      = '/var/lib/jenkins/.kube/config'
+  environment {
+  IMAGE_TAG       = "${GIT_COMMIT[0..7]}"
+  BACKEND_IMAGE   = "ajaydev/foodapp-backend"
+  FRONTEND_IMAGE  = "ajaydev/foodapp-frontend"
+  KUBECONFIG      = '/var/lib/jenkins/.kube/config'
+}
   }
 
   options {
