@@ -4,7 +4,7 @@
 pipeline {
   agent any
 
-  environment {
+  
   environment {
   IMAGE_TAG       = "${GIT_COMMIT[0..7]}"
   BACKEND_IMAGE   = "ajaydev/foodapp-backend"
