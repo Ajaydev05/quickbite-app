@@ -1,62 +1,58 @@
-variable "aws_region" {
-  description = "AWS region"
-  default     = "ap-south-1"
-}
+# modules/ec2_workers/variables.tf
 
 variable "project" {
-  description = "Project name — used as prefix on resource names"
-  default     = "foodapp"
-}
-
-variable "aws_access_key" {
-  description = "AWS Access Key ID"
-  sensitive   = true
-}
-
-variable "aws_secret_key" {
-  description = "AWS Secret Access Key"
-  sensitive   = true
+  description = "Project name prefix"
+  type        = string
+  default     = "quickbite"
 }
 
 variable "ami_id" {
-  description = "Ubuntu 22.04 LTS AMI — ap-south-1"
-  default     = "ami-0f58b397bc5c1f2e8"
+  description = "Ubuntu 22.04 AMI ID for ap-south-1"
+  type        = string
 }
 
 variable "key_name" {
-  description = "EC2 Key Pair name — must already exist in your AWS account"
+  description = "EC2 Key Pair name"
+  type        = string
 }
 
-variable "instance_type_worker" {
-  description = "Worker node instance type"
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
   default     = "t3.small"
 }
 
-# ── After you run 'kubeadm init' on the master, fill these 3 values ──────────
-# Run this on your master:  kubeadm token create --print-join-command
-# It prints something like:
-#   kubeadm join 172.31.x.x:6443 --token abc.xyz --discovery-token-ca-cert-hash sha256:...
+variable "worker_count" {
+  description = "Number of worker nodes"
+  type        = number
+  default     = 2
+}
 
 variable "master_private_ip" {
-  description = "Private IP of your master EC2 (from AWS console)"
+  description = "Private IP of the K8s master node"
+  type        = string
+  sensitive   = true
 }
 
 variable "cluster_token" {
-  description = "Token from: kubeadm token create --print-join-command"
+  description = "kubeadm bootstrap token"
+  type        = string
   sensitive   = true
 }
 
 variable "cluster_ca_hash" {
-  description = "CA hash from join command — the sha256:... value"
+  description = "kubeadm CA certificate hash"
+  type        = string
   sensitive   = true
 }
 
-# ── DockerHub — images are pushed here by Jenkins and pulled here by K8s ──────
 variable "dockerhub_username" {
-  description = "Your DockerHub username"
+  description = "DockerHub username"
+  type        = string
 }
 
 variable "dockerhub_password" {
-  description = "Your DockerHub password or access token"
+  description = "DockerHub password"
+  type        = string
   sensitive   = true
 }
