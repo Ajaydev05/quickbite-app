@@ -1,60 +1,58 @@
-terraform {
-  required_version = ">= 1.6.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
+resource "aws_security_group" "worker" {
+  name        = "${var.project}-worker-sg"
+  description = "K8s worker node security group"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-  # No backend — state saved locally as terraform.tfstate
-  # No S3, no DynamoDB required
-}
 
-provider "aws" {
-  region     = var.aws_region
-  access_key = var.aws_access_key
-  secret_key = var.aws_secret_key
-}
-
-# ── Reuse the default VPC — every AWS account already has one ─────────────────
-data "aws_vpc" "default" { default = true }
-
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+  ingress {
+    description = "Kubelet API"          # ✅ removed "master -> worker" and ()
+    from_port   = 10250
+    to_port     = 10250
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
-}
 
-# ── Terraform creates ONLY the 2 worker EC2s ──────────────────────────────────
-# You create the master manually and install Jenkins + Docker + kubeadm on it.
-# After running kubeadm init on the master, run:
-#   kubeadm token create --print-join-command
-# Paste the token and ca-hash into terraform.tfvars, then run terraform apply.
-# Workers will boot and automatically join your master.
-module "k8s_workers" {
-  source = "../../modules/ec2_workers"
+  ingress {
+    description = "NodePort Services"    # ✅ removed any special chars
+    from_port   = 30000
+    to_port     = 32767
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-  project            = var.project
-  ami_id             = var.ami_id
-  key_name           = var.key_name
-  instance_type      = var.instance_type_worker
-  subnet_ids         = data.aws_subnets.default.ids
-  vpc_id             = data.aws_vpc.default.id
-  master_private_ip  = var.master_private_ip
-  cluster_token      = var.cluster_token
-  cluster_ca_hash    = var.cluster_ca_hash
-  dockerhub_username = var.dockerhub_username
-  dockerhub_password = var.dockerhub_password
-}
+  ingress {
+    description = "Flannel VXLAN"        # ✅ clean description
+    from_port   = 8472
+    to_port     = 8472
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-# ── Outputs ───────────────────────────────────────────────────────────────────
-output "worker_public_ips" {
-  description = "App is accessible at http://WORKER_IP:30080"
-  value       = module.k8s_workers.worker_public_ips
-}
+  ingress {
+    description = "Kubernetes API"       # ✅ clean description
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-output "worker_private_ips" {
-  description = "Private IPs — used for internal cluster communication"
-  value       = module.k8s_workers.worker_private_ips
+  egress {
+    description = "Allow all outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name    = "${var.project}-worker-sg"
+    Project = var.project
+  }
 }
