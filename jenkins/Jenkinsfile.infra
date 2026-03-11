@@ -1,5 +1,5 @@
 // jenkins/Jenkinsfile.infra
-// Provisions worker EC2s + ECR repos using Terraform
+// Provisions worker EC2s using Terraform
 // Run this ONCE before the app pipeline — or whenever you need to add/remove workers
 
 pipeline {
@@ -7,7 +7,7 @@ pipeline {
 
   environment {
     AWS_REGION = 'ap-south-1'
-    TF_DIR     = 'foodapp/terraform/environments/prod'
+    TF_DIR     = 'terraform/environments/prod'
   }
 
   options {
@@ -65,7 +65,7 @@ pipeline {
     }
 
     stage('Approval') {
-      when { branch 'main' }
+      when { branch 'master' }
       steps {
         input message: 'Review the plan above. Apply to create worker EC2s?',
               parameters: [choice(name: 'ACTION', choices: ['Approve', 'Abort'], description: '')]
@@ -73,7 +73,7 @@ pipeline {
     }
 
     stage('Terraform Apply') {
-      when { branch 'main' }
+      when { branch 'master' }
       steps {
         withCredentials([
           string(credentialsId: 'aws-access-key',    variable: 'AWS_ACCESS_KEY'),
