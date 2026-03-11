@@ -1,17 +1,15 @@
-// Jenkinsfile.app
+// jenkins/Jenkinsfile.app
 // Builds Docker images, pushes to DockerHub, deploys to Kubernetes
 
 pipeline {
   agent any
 
-  
   environment {
-  IMAGE_TAG       = "${GIT_COMMIT[0..7]}"
-  BACKEND_IMAGE   = "ajaydev/foodapp-backend"
-  FRONTEND_IMAGE  = "ajaydev/foodapp-frontend"
-  KUBECONFIG      = '/var/lib/jenkins/.kube/config'
-}
-  
+    IMAGE_TAG      = "${GIT_COMMIT[0..7]}"
+    BACKEND_IMAGE  = "ajaydev05/foodapp-backend"
+    FRONTEND_IMAGE = "ajaydev05/foodapp-frontend"
+    KUBECONFIG     = '/var/lib/jenkins/.kube/config'
+  }
 
   options {
     buildDiscarder(logRotator(numToKeepStr: '10'))
@@ -31,7 +29,7 @@ pipeline {
       parallel {
         stage('Backend Tests') {
           steps {
-            dir('foodapp/backend') {
+            dir('backend') {                      // ✅ FIX 1: removed foodapp/ prefix
               sh 'npm ci'
               sh 'npm test'
             }
@@ -39,7 +37,7 @@ pipeline {
         }
         stage('Frontend Tests') {
           steps {
-            dir('foodapp/frontend') {
+            dir('frontend') {                     // ✅ FIX 1: removed foodapp/ prefix
               sh 'npm ci'
               sh 'npm test -- --watchAll=false'
             }
@@ -50,7 +48,12 @@ pipeline {
 
     stage('DockerHub Login') {
       steps {
-        sh 'echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin'
+        withCredentials([
+          string(credentialsId: 'dockerhub-username', variable: 'DOCKERHUB_USER'),  // ✅ FIX 2: use withCredentials
+          string(credentialsId: 'dockerhub-password', variable: 'DOCKERHUB_PASS')
+        ]) {
+          sh 'echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin'
+        }
       }
     }
 
@@ -58,14 +61,14 @@ pipeline {
       parallel {
         stage('Build Backend') {
           steps {
-            dir('foodapp/backend') {
+            dir('backend') {                      // ✅ FIX 1: removed foodapp/ prefix
               sh "docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -t ${BACKEND_IMAGE}:latest ."
             }
           }
         }
         stage('Build Frontend') {
           steps {
-            dir('foodapp/frontend') {
+            dir('frontend') {                     // ✅ FIX 1: removed foodapp/ prefix
               sh "docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:latest ."
             }
           }
@@ -75,37 +78,46 @@ pipeline {
 
     stage('Push to DockerHub') {
       steps {
-        sh """
-          docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
-          docker push ${BACKEND_IMAGE}:latest
-          docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
-          docker push ${FRONTEND_IMAGE}:latest
-        """
+        withCredentials([
+          string(credentialsId: 'dockerhub-username', variable: 'DOCKERHUB_USER'),
+          string(credentialsId: 'dockerhub-password', variable: 'DOCKERHUB_PASS')
+        ]) {
+          sh """
+            docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
+            docker push ${BACKEND_IMAGE}:latest
+            docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
+            docker push ${FRONTEND_IMAGE}:latest
+          """
+        }
       }
     }
 
     stage('Deploy to Kubernetes') {
       steps {
-        sh """
-          # 1. Apply StorageClass + PV + PVC first (MongoDB needs this)
-          kubectl apply -f foodapp/k8s/base/storage.yaml
+        withCredentials([
+          string(credentialsId: 'dockerhub-username', variable: 'DOCKERHUB_USER')
+        ]) {
+          sh """
+            # 1. Apply StorageClass + PV + PVC first (MongoDB needs this)
+            kubectl apply -f k8s/base/storage.yaml
 
-          # 2. Apply Services, ConfigMap, Secrets
-          kubectl apply -f foodapp/k8s/base/service.yaml
+            # 2. Apply Services, ConfigMap, Secrets
+            kubectl apply -f k8s/base/service.yaml
 
-          # 3. Replace image placeholders with real DockerHub image names
-          sed -i 's|DOCKERHUB_USER|${DOCKERHUB_USER}|g' foodapp/k8s/base/deployment.yaml
-          sed -i 's|IMAGE_TAG|${IMAGE_TAG}|g'            foodapp/k8s/base/deployment.yaml
-          kubectl apply -f foodapp/k8s/base/deployment.yaml
+            # 3. Replace image placeholders with real DockerHub image names
+            sed -i 's|DOCKERHUB_USER|${DOCKERHUB_USER}|g' k8s/base/deployment.yaml
+            sed -i 's|IMAGE_TAG|${IMAGE_TAG}|g'            k8s/base/deployment.yaml
+            kubectl apply -f k8s/base/deployment.yaml
 
-          # 4. Apply autoscaling
-          kubectl apply -f foodapp/k8s/base/hpa.yaml
+            # 4. Apply autoscaling
+            kubectl apply -f k8s/base/hpa.yaml
 
-          # 5. Wait for rollouts to complete
-          kubectl rollout status statefulset/mongodb --timeout=180s
-          kubectl rollout status deployment/backend  --timeout=120s
-          kubectl rollout status deployment/frontend --timeout=120s
-        """
+            # 5. Wait for rollouts to complete
+            kubectl rollout status statefulset/mongodb --timeout=180s
+            kubectl rollout status deployment/backend  --timeout=120s
+            kubectl rollout status deployment/frontend --timeout=120s
+          """
+        }
       }
     }
 
@@ -127,18 +139,22 @@ pipeline {
       echo "Deployment ${IMAGE_TAG} succeeded"
     }
     failure {
-      echo "Deployment failed — rolling back"
-      sh '''
-        kubectl rollout undo deployment/backend  || true
-        kubectl rollout undo deployment/frontend || true
-      '''
+      node('') {                                  // ✅ FIX 3: wrap with node() so sh works in post
+        sh '''
+          kubectl rollout undo deployment/backend  || true
+          kubectl rollout undo deployment/frontend || true
+        '''
+      }
     }
     always {
-      // Clean up local images to free disk space on master
-      sh """
-        docker rmi ${BACKEND_IMAGE}:${IMAGE_TAG}  || true
-        docker rmi ${FRONTEND_IMAGE}:${IMAGE_TAG} || true
-      """
+      script {                                    // ✅ FIX 4: guard with script + if check
+        if (env.BACKEND_IMAGE && env.IMAGE_TAG) {
+          sh """
+            docker rmi ${BACKEND_IMAGE}:${IMAGE_TAG}  || true
+            docker rmi ${FRONTEND_IMAGE}:${IMAGE_TAG} || true
+          """
+        }
+      }
     }
   }
 }
