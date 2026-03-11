@@ -29,7 +29,7 @@ pipeline {
       parallel {
         stage('Backend Tests') {
           steps {
-            dir('backend') {                      // ✅ FIX 1: removed foodapp/ prefix
+            dir('backend') {
               sh 'npm ci'
               sh 'npm test'
             }
@@ -37,7 +37,7 @@ pipeline {
         }
         stage('Frontend Tests') {
           steps {
-            dir('frontend') {                     // ✅ FIX 1: removed foodapp/ prefix
+            dir('frontend') {
               sh 'npm ci'
               sh 'npm test -- --watchAll=false'
             }
@@ -49,10 +49,11 @@ pipeline {
     stage('DockerHub Login') {
       steps {
         withCredentials([
-          string(credentialsId: 'dockerhub-username', variable: 'DOCKERHUB_USER'),  // ✅ FIX 2: use withCredentials
-          string(credentialsId: 'dockerhub-password', variable: 'DOCKERHUB_PASS')
+          usernamePassword(credentialsId: 'dockerhub_username',
+                           usernameVariable: 'DH_USER',
+                           passwordVariable: 'DH_PASS')
         ]) {
-          sh 'echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin'
+          sh 'echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin'
         }
       }
     }
@@ -61,14 +62,14 @@ pipeline {
       parallel {
         stage('Build Backend') {
           steps {
-            dir('backend') {                      // ✅ FIX 1: removed foodapp/ prefix
+            dir('backend') {
               sh "docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -t ${BACKEND_IMAGE}:latest ."
             }
           }
         }
         stage('Build Frontend') {
           steps {
-            dir('frontend') {                     // ✅ FIX 1: removed foodapp/ prefix
+            dir('frontend') {
               sh "docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:latest ."
             }
           }
@@ -78,24 +79,21 @@ pipeline {
 
     stage('Push to DockerHub') {
       steps {
-        withCredentials([
-          string(credentialsId: 'dockerhub-username', variable: 'DOCKERHUB_USER'),
-          string(credentialsId: 'dockerhub-password', variable: 'DOCKERHUB_PASS')
-        ]) {
-          sh """
-            docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
-            docker push ${BACKEND_IMAGE}:latest
-            docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
-            docker push ${FRONTEND_IMAGE}:latest
-          """
-        }
+        sh """
+          docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
+          docker push ${BACKEND_IMAGE}:latest
+          docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
+          docker push ${FRONTEND_IMAGE}:latest
+        """
       }
     }
 
     stage('Deploy to Kubernetes') {
       steps {
         withCredentials([
-          string(credentialsId: 'dockerhub-username', variable: 'DOCKERHUB_USER')
+          usernamePassword(credentialsId: 'dockerhub_username',
+                           usernameVariable: 'DH_USER',
+                           passwordVariable: 'DH_PASS')
         ]) {
           sh """
             # 1. Apply StorageClass + PV + PVC first (MongoDB needs this)
@@ -105,8 +103,8 @@ pipeline {
             kubectl apply -f k8s/base/service.yaml
 
             # 3. Replace image placeholders with real DockerHub image names
-            sed -i 's|DOCKERHUB_USER|${DOCKERHUB_USER}|g' k8s/base/deployment.yaml
-            sed -i 's|IMAGE_TAG|${IMAGE_TAG}|g'            k8s/base/deployment.yaml
+            sed -i 's|DOCKERHUB_USER|\$DH_USER|g' k8s/base/deployment.yaml
+            sed -i 's|IMAGE_TAG|${IMAGE_TAG}|g'    k8s/base/deployment.yaml
             kubectl apply -f k8s/base/deployment.yaml
 
             # 4. Apply autoscaling
@@ -139,7 +137,7 @@ pipeline {
       echo "Deployment ${IMAGE_TAG} succeeded"
     }
     failure {
-      node('') {                                  // ✅ FIX 3: wrap with node() so sh works in post
+      node('') {
         sh '''
           kubectl rollout undo deployment/backend  || true
           kubectl rollout undo deployment/frontend || true
@@ -147,7 +145,7 @@ pipeline {
       }
     }
     always {
-      script {                                    // ✅ FIX 4: guard with script + if check
+      script {
         if (env.BACKEND_IMAGE && env.IMAGE_TAG) {
           sh """
             docker rmi ${BACKEND_IMAGE}:${IMAGE_TAG}  || true
