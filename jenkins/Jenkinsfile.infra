@@ -29,7 +29,10 @@ pipeline {
           string(credentialsId: 'cluster-token',     variable: 'CLUSTER_TOKEN'),
           string(credentialsId: 'cluster-ca-hash',   variable: 'CLUSTER_CA_HASH'),
           string(credentialsId: 'master-private-ip', variable: 'MASTER_IP'),
-          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME')
+          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME'),
+          usernamePassword(credentialsId: 'dockerhub_username',
+                           usernameVariable: 'DH_USER',
+                           passwordVariable: 'DH_PASS')
         ]) {
           dir(TF_DIR) {
             sh 'terraform init -reconfigure -input=false'
@@ -46,7 +49,10 @@ pipeline {
           string(credentialsId: 'cluster-token',     variable: 'CLUSTER_TOKEN'),
           string(credentialsId: 'cluster-ca-hash',   variable: 'CLUSTER_CA_HASH'),
           string(credentialsId: 'master-private-ip', variable: 'MASTER_IP'),
-          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME')
+          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME'),
+          usernamePassword(credentialsId: 'dockerhub_username',
+                           usernameVariable: 'DH_USER',
+                           passwordVariable: 'DH_PASS')
         ]) {
           dir(TF_DIR) {
             sh """
@@ -56,7 +62,9 @@ pipeline {
                 -var="cluster_token=\$CLUSTER_TOKEN" \
                 -var="cluster_ca_hash=\$CLUSTER_CA_HASH" \
                 -var="master_private_ip=\$MASTER_IP" \
-                -var="key_name=\$KEY_NAME"
+                -var="key_name=\$KEY_NAME" \
+                -var="dockerhub_username=\$DH_USER" \
+                -var="dockerhub_password=\$DH_PASS"
             """
             archiveArtifacts artifacts: 'tfplan', allowEmptyArchive: true
           }
@@ -81,7 +89,10 @@ pipeline {
           string(credentialsId: 'cluster-token',     variable: 'CLUSTER_TOKEN'),
           string(credentialsId: 'cluster-ca-hash',   variable: 'CLUSTER_CA_HASH'),
           string(credentialsId: 'master-private-ip', variable: 'MASTER_IP'),
-          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME')
+          string(credentialsId: 'ec2-key-name',      variable: 'KEY_NAME'),
+          usernamePassword(credentialsId: 'dockerhub_username',
+                           usernameVariable: 'DH_USER',
+                           passwordVariable: 'DH_PASS')
         ]) {
           dir(TF_DIR) {
             sh """
