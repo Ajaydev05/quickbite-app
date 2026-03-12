@@ -31,7 +31,7 @@ pipeline {
             dir('backend') {
               sh '''
                 export PATH=$PATH:/usr/local/bin
-                npm ci
+                npm install
                 npm test
               '''
             }
@@ -42,7 +42,7 @@ pipeline {
             dir('frontend') {
               sh '''
                 export PATH=$PATH:/usr/local/bin
-                npm ci
+                npm install
                 npm test -- --watchAll=false
               '''
             }
@@ -101,15 +101,15 @@ pipeline {
                            passwordVariable: 'DH_PASS')
         ]) {
           sh """
-            kubectl apply -f k8s/base/storage.yaml
-            kubectl apply -f k8s/base/service.yaml
+            kubectl --kubeconfig=/var/lib/jenkins/.kube/config apply -f k8s/base/storage.yaml
+            kubectl --kubeconfig=/var/lib/jenkins/.kube/config apply -f k8s/base/service.yaml
             sed -i 's|DOCKERHUB_USER|\$DH_USER|g' k8s/base/deployment.yaml
             sed -i 's|IMAGE_TAG|${IMAGE_TAG}|g'    k8s/base/deployment.yaml
-            kubectl apply -f k8s/base/deployment.yaml
-            kubectl apply -f k8s/base/hpa.yaml
-            kubectl rollout status statefulset/mongodb --timeout=180s
-            kubectl rollout status deployment/backend  --timeout=120s
-            kubectl rollout status deployment/frontend --timeout=120s
+            kubectl --kubeconfig=/var/lib/jenkins/.kube/config apply -f k8s/base/deployment.yaml
+            kubectl --kubeconfig=/var/lib/jenkins/.kube/config apply -f k8s/base/hpa.yaml
+            kubectl --kubeconfig=/var/lib/jenkins/.kube/config rollout status statefulset/mongodb --timeout=180s
+            kubectl --kubeconfig=/var/lib/jenkins/.kube/config rollout status deployment/backend  --timeout=120s
+            kubectl --kubeconfig=/var/lib/jenkins/.kube/config rollout status deployment/frontend --timeout=120s
           """
         }
       }
@@ -118,7 +118,8 @@ pipeline {
     stage('Smoke Test') {
       steps {
         sh '''
-          WORKER_IP=$(kubectl get nodes -o jsonpath="{.items[1].status.addresses[0].address}")
+          WORKER_IP=$(kubectl --kubeconfig=/var/lib/jenkins/.kube/config get nodes \
+            -o jsonpath="{.items[1].status.addresses[0].address}")
           echo "Testing http://${WORKER_IP}:30080"
           curl -f --retry 5 --retry-delay 5 http://${WORKER_IP}:30080 || exit 1
           echo "Smoke test passed"
@@ -134,12 +135,10 @@ pipeline {
     }
     failure {
       node('') {
-        withEnv(["KUBECONFIG=/var/lib/jenkins/.kube/config"]) {  // ✅ fix kubectl auth
-          sh '''
-            kubectl rollout undo deployment/backend  || true
-            kubectl rollout undo deployment/frontend || true
-          '''
-        }
+        sh '''
+          kubectl --kubeconfig=/var/lib/jenkins/.kube/config rollout undo deployment/backend  || true
+          kubectl --kubeconfig=/var/lib/jenkins/.kube/config rollout undo deployment/frontend || true
+        '''
       }
     }
     always {
