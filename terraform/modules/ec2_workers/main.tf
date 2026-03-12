@@ -1,22 +1,15 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# ec2_workers module
-#
-# Creates:
-#   1. Security Group for the 2 worker nodes
-#   2. 2 worker EC2 instances in the default VPC
-#
-# Each worker on first boot:
-#   - Installs containerd + kubelet + kubeadm
-#   - Configures DockerHub credentials in containerd so K8s can pull images
-#   - Runs kubeadm join to connect to YOUR master node
-# ─────────────────────────────────────────────────────────────────────────────
+# modules/ec2_workers/main.tf
+
+# Get default VPC automatically — no need to hardcode
+data "aws_vpc" "default" {
+  default = true
+}
 
 resource "aws_security_group" "worker" {
   name        = "${var.project}-worker-sg"
-  description = "K8s worker nodes"
-  vpc_id      = var.vpc_id
+  description = "K8s worker node security group"
+  vpc_id      = data.aws_vpc.default.id    
 
-  # SSH — to log in and debug if needed
   ingress {
     description = "SSH"
     from_port   = 22
@@ -25,65 +18,74 @@ resource "aws_security_group" "worker" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Kubelet — master calls this port to schedule and manage pods
   ingress {
-    description = "Kubelet API (master -> worker)"
+    description = "Kubelet API"
     from_port   = 10250
     to_port     = 10250
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # NodePort — this is how users access the app in browser
-  # http://WORKER_PUBLIC_IP:30080  →  frontend
   ingress {
-    description = "NodePort services (app access)"
+    description = "NodePort Services"
     from_port   = 30000
     to_port     = 32767
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Flannel VXLAN — pod-to-pod networking across nodes
   ingress {
-    description = "Flannel overlay network"
+    description = "Flannel VXLAN"
     from_port   = 8472
     to_port     = 8472
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # All outbound — workers need internet to pull DockerHub images + apt packages
+  ingress {
+    description = "Kubernetes API"
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
+    description = "Allow all outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project}-worker-sg" }
+  tags = {
+    Name    = "${var.project}-worker-sg"
+    Project = var.project
+  }
+}
+
+# Get default subnets automatically
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
 
 resource "aws_instance" "worker" {
-  count = 2
-
-  ami           = var.ami_id
-  instance_type = var.instance_type
-
-  # Spread across available subnets (different AZs for HA)
-  subnet_id = var.subnet_ids[count.index % length(var.subnet_ids)]
-
-  key_name                    = var.key_name
-  vpc_security_group_ids      = [aws_security_group.worker.id]
-  associate_public_ip_address = true
+  count                  = var.worker_count
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
+  subnet_id              = data.aws_subnets.default.ids[count.index % length(data.aws_subnets.default.ids)]
+  vpc_security_group_ids = [aws_security_group.worker.id]
 
   root_block_device {
     volume_size = 20
     volume_type = "gp3"
-    tags        = { Name = "${var.project}-worker-${count.index + 1}-disk" }
   }
 
-  user_data = templatefile("${path.module}/scripts/worker_init.sh", {
+  user_data = templatefile("${path.module}/worker_init.sh", {
     master_private_ip  = var.master_private_ip
     cluster_token      = var.cluster_token
     cluster_ca_hash    = var.cluster_ca_hash
@@ -92,24 +94,7 @@ resource "aws_instance" "worker" {
   })
 
   tags = {
-    Name = "${var.project}-worker-${count.index + 1}"
-    Role = "k8s-worker"
+    Name    = "${var.project}-worker-${count.index + 1}"
+    Project = var.project
   }
 }
-
-# ── Variables ─────────────────────────────────────────────────────────────────
-variable "project"            {}
-variable "ami_id"             {}
-variable "key_name"           {}
-variable "instance_type"      { default = "t3.small" }
-variable "subnet_ids"         { type = list(string) }
-variable "vpc_id"             {}
-variable "master_private_ip"  {}
-variable "cluster_token"      { sensitive = true }
-variable "cluster_ca_hash"    { sensitive = true }
-variable "dockerhub_username" {}
-variable "dockerhub_password" { sensitive = true }
-
-# ── Outputs ───────────────────────────────────────────────────────────────────
-output "worker_public_ips"  { value = aws_instance.worker[*].public_ip }
-output "worker_private_ips" { value = aws_instance.worker[*].private_ip }
