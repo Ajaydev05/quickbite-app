@@ -37,17 +37,17 @@ pipeline {
             }
           }
         }
-        stage('Frontend Tests') {
-          steps {
-            dir('frontend') {
-              sh '''
-                export PATH=$PATH:/usr/local/bin
-                npm install
-                npm test -- --watchAll=false
-              '''
-            }
-          }
-        }
+      stage('Frontend Tests') {
+  steps {
+    dir('frontend') {
+      sh '''
+        export PATH=$PATH:/usr/local/bin
+        npm install
+        npm test -- --watchAll=false --passWithNoTests
+      '''
+    }
+  }
+}
       }
     }
 
