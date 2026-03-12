@@ -1,14 +1,20 @@
 # modules/ec2_workers/main.tf
 
-# Get default VPC automatically — no need to hardcode
 data "aws_vpc" "default" {
   default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
 
 resource "aws_security_group" "worker" {
   name        = "${var.project}-worker-sg"
   description = "K8s worker node security group"
-  vpc_id      = data.aws_vpc.default.id    
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
     description = "SSH"
@@ -64,14 +70,6 @@ resource "aws_security_group" "worker" {
   }
 }
 
-# Get default subnets automatically
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-}
-
 resource "aws_instance" "worker" {
   count                  = var.worker_count
   ami                    = var.ami_id
@@ -85,7 +83,7 @@ resource "aws_instance" "worker" {
     volume_type = "gp3"
   }
 
-  user_data = templatefile("${path.module}/worker_init.sh", {
+  user_data = templatefile("${path.module}/scripts/worker_init.sh", {  # ✅ fixed path
     master_private_ip  = var.master_private_ip
     cluster_token      = var.cluster_token
     cluster_ca_hash    = var.cluster_ca_hash
