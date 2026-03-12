@@ -1,5 +1,4 @@
 // jenkins/Jenkinsfile.app
-// Builds Docker images, pushes to DockerHub, deploys to Kubernetes
 
 pipeline {
   agent any
@@ -30,16 +29,22 @@ pipeline {
         stage('Backend Tests') {
           steps {
             dir('backend') {
-              sh 'npm ci'
-              sh 'npm test'
+              sh '''
+                export PATH=$PATH:/usr/local/bin
+                npm ci
+                npm test
+              '''
             }
           }
         }
         stage('Frontend Tests') {
           steps {
             dir('frontend') {
-              sh 'npm ci'
-              sh 'npm test -- --watchAll=false'
+              sh '''
+                export PATH=$PATH:/usr/local/bin
+                npm ci
+                npm test -- --watchAll=false
+              '''
             }
           }
         }
@@ -96,21 +101,12 @@ pipeline {
                            passwordVariable: 'DH_PASS')
         ]) {
           sh """
-            # 1. Apply StorageClass + PV + PVC first (MongoDB needs this)
             kubectl apply -f k8s/base/storage.yaml
-
-            # 2. Apply Services, ConfigMap, Secrets
             kubectl apply -f k8s/base/service.yaml
-
-            # 3. Replace image placeholders with real DockerHub image names
             sed -i 's|DOCKERHUB_USER|\$DH_USER|g' k8s/base/deployment.yaml
             sed -i 's|IMAGE_TAG|${IMAGE_TAG}|g'    k8s/base/deployment.yaml
             kubectl apply -f k8s/base/deployment.yaml
-
-            # 4. Apply autoscaling
             kubectl apply -f k8s/base/hpa.yaml
-
-            # 5. Wait for rollouts to complete
             kubectl rollout status statefulset/mongodb --timeout=180s
             kubectl rollout status deployment/backend  --timeout=120s
             kubectl rollout status deployment/frontend --timeout=120s
@@ -134,14 +130,16 @@ pipeline {
 
   post {
     success {
-      echo "Deployment ${IMAGE_TAG} succeeded"
+      echo "✅ Deployment ${IMAGE_TAG} succeeded"
     }
     failure {
       node('') {
-        sh '''
-          kubectl rollout undo deployment/backend  || true
-          kubectl rollout undo deployment/frontend || true
-        '''
+        withEnv(["KUBECONFIG=/var/lib/jenkins/.kube/config"]) {  // ✅ fix kubectl auth
+          sh '''
+            kubectl rollout undo deployment/backend  || true
+            kubectl rollout undo deployment/frontend || true
+          '''
+        }
       }
     }
     always {
