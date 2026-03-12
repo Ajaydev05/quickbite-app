@@ -73,7 +73,9 @@ pipeline {
     }
 
     stage('Approval') {
-      when { branch 'master' }
+      when {
+        expression { env.GIT_BRANCH ==~ /.*master/ }  // ✅ matches both master and origin/master
+      }
       steps {
         input message: 'Review the plan above. Apply to create worker EC2s?',
               parameters: [choice(name: 'ACTION', choices: ['Approve', 'Abort'], description: '')]
@@ -81,7 +83,9 @@ pipeline {
     }
 
     stage('Terraform Apply') {
-      when { branch 'master' }
+      when {
+        expression { env.GIT_BRANCH ==~ /.*master/ }  // ✅ matches both master and origin/master
+      }
       steps {
         withCredentials([
           string(credentialsId: 'aws-access-key',    variable: 'AWS_ACCESS_KEY'),
