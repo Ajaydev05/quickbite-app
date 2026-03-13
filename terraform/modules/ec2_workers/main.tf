@@ -79,11 +79,11 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [aws_security_group.worker.id]
 
   root_block_device {
-    volume_size = 20
+    volume_size = 08
     volume_type = "gp3"
   }
 
-  user_data = templatefile("${path.module}/scripts/worker_init.sh", {  # ✅ fixed path
+  user_data = templatefile("${path.module}/scripts/worker_init.sh", {
     master_private_ip  = var.master_private_ip
     cluster_token      = var.cluster_token
     cluster_ca_hash    = var.cluster_ca_hash
