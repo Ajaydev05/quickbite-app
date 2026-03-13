@@ -12,8 +12,8 @@ module "k8s_workers" {
   project            = "quickbite"
   ami_id             = var.ami_id
   key_name           = var.key_name
-  instance_type      = var.instance_type_worker
-  worker_count       = var.worker_count
+  instance_type      = "t2.micro"           # ✅ 1x t2.micro
+  worker_count       = 1                    # ✅ only 1 instance
   master_private_ip  = var.master_private_ip
   cluster_token      = var.cluster_token
   cluster_ca_hash    = var.cluster_ca_hash
