@@ -23,7 +23,7 @@ variable "aws_secret_key" {
 variable "ami_id" {
   description = "Ubuntu 22.04 AMI ID for ap-south-1"
   type        = string
-  default     = "ami-0f58b397bc5c1f2e8"   # Ubuntu 22.04 ap-south-1
+  default     = "ami-0f58b397bc5c1f2e8"
 }
 
 variable "key_name" {
@@ -34,13 +34,13 @@ variable "key_name" {
 variable "instance_type_worker" {
   description = "EC2 instance type for worker nodes"
   type        = string
-  default     = "t3.small"
+  default     = "t2.micro"    # ✅ changed to t2.micro
 }
 
 variable "worker_count" {
   description = "Number of worker nodes to create"
   type        = number
-  default     = 2
+  default     = 1             # ✅ changed to 1
 }
 
 # ── Kubernetes Join Config ────────────────────────────────────
