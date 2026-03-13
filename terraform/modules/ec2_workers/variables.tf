@@ -19,13 +19,13 @@ variable "key_name" {
 variable "instance_type" {
   description = "EC2 instance type"
   type        = string
-  default     = "t3.small"
+  default     = "t2.micro"    # ✅ changed to t2.micro
 }
 
 variable "worker_count" {
   description = "Number of worker nodes"
   type        = number
-  default     = 2
+  default     = 1             # ✅ changed to 1
 }
 
 variable "master_private_ip" {
