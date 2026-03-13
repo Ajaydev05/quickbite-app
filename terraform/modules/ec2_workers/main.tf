@@ -79,7 +79,7 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [aws_security_group.worker.id]
 
   root_block_device {
-    volume_size = 08
+    volume_size = 8
     volume_type = "gp3"
   }
 
