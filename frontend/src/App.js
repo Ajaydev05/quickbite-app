@@ -13,7 +13,7 @@ import RestaurantDetail from './pages/RestaurantDetail';
 import Cart           from './pages/Cart';
 import Checkout       from './pages/Checkout';
 import OrderTracking  from './pages/OrderTracking';
-import OrderHistory   from './pages/OrderHistory';
+import OrderHistory   from './pages/OrdersPage';
 import Profile        from './pages/Profile';
 
 // Restaurant Owner Pages
