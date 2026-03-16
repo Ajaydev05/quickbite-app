@@ -9,6 +9,10 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
+  filter {
+    name   = "availabilityZone"
+    values = ["ap-south-1a", "ap-south-1b"]
+  }
 }
 
 resource "aws_security_group" "worker" {
@@ -75,7 +79,7 @@ resource "aws_instance" "worker" {
   ami                    = var.ami_id
   instance_type          = var.instance_type
   key_name               = var.key_name
-  subnet_id              = data.aws_subnets.default.ids[count.index % length(data.aws_subnets.default.ids)]
+  subnet_id              = data.aws_subnets.default.ids[0]   # ✅ always use first valid subnet
   vpc_security_group_ids = [aws_security_group.worker.id]
 
   root_block_device {
