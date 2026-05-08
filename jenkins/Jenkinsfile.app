@@ -8,10 +8,14 @@ pipeline {
     BACKEND_IMAGE  = "ajaydev05/foodapp-backend"
     FRONTEND_IMAGE = "ajaydev05/foodapp-frontend"
     KUBECONFIG     = '/var/lib/jenkins/.kube/config'
+
+    // npm cache dirs — shared across builds so packages aren't re-downloaded
+    NPM_CACHE_BACKEND  = '/var/lib/jenkins/.npm-cache/backend'
+    NPM_CACHE_FRONTEND = '/var/lib/jenkins/.npm-cache/frontend'
   }
 
   options {
-    buildDiscarder(logRotator(numToKeepStr: '10'))
+    buildDiscarder(logRotator(numToKeepStr: '5'))
     timeout(time: 30, unit: 'MINUTES')
   }
 
@@ -26,28 +30,31 @@ pipeline {
 
     stage('Run Tests') {
       parallel {
+
         stage('Backend Tests') {
           steps {
             dir('backend') {
               sh '''
                 export PATH=$PATH:/usr/local/bin
-                npm install
+                npm install --cache ${NPM_CACHE_BACKEND} --prefer-offline
                 npm test
               '''
             }
           }
         }
-      stage('Frontend Tests') {
-  steps {
-    dir('frontend') {
-      sh '''
-        export PATH=$PATH:/usr/local/bin
-        npm install
-        npm test -- --watchAll=false --passWithNoTests
-      '''
-    }
-  }
-}
+
+        stage('Frontend Tests') {
+          steps {
+            dir('frontend') {
+              sh '''
+                export PATH=$PATH:/usr/local/bin
+                npm install --cache ${NPM_CACHE_FRONTEND} --prefer-offline
+                npm test -- --watchAll=false --passWithNoTests
+              '''
+            }
+          }
+        }
+
       }
     }
 
@@ -65,6 +72,7 @@ pipeline {
 
     stage('Build Docker Images') {
       parallel {
+
         stage('Build Backend') {
           steps {
             dir('backend') {
@@ -72,6 +80,7 @@ pipeline {
             }
           }
         }
+
         stage('Build Frontend') {
           steps {
             dir('frontend') {
@@ -79,6 +88,7 @@ pipeline {
             }
           }
         }
+
       }
     }
 
